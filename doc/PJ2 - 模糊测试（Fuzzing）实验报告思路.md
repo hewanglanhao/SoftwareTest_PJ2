@@ -42,19 +42,26 @@
 
 ### 4.1 变异器实现
 
-请说明你们实现或补充了哪些变异策略，例如：
+本项目在 `simple_fuzzer/utils/mutator.py` 中实现并补强了变异器。`Mutator` 类维护一个变异算子列表，每次调用 `mutate()` 时随机选择一种策略，对当前 seed 生成新的候选输入。相比只做简单字符插入，当前实现同时包含字符级、字节级、块级、字典引导和 havoc 随机扰动，能够覆盖更多输入形态。
 
-- 字符插入。
-- bit flip。
-- 字节加减。
-- interesting values 替换。
-- ......
+已实现的主要变异策略如下：
 
-建议重点说明：
+| 策略 | 函数 | 说明 |
+| --- | --- | --- |
+| 随机字符插入 | `insert_random_character` | 在任意位置插入可打印字符，提高输入长度和字符组合多样性。 |
+| 随机字符删除 | `delete_random_character` | 删除单个字符，触发长度不足或字段缺失类边界。 |
+| 随机块删除 | `delete_random_block` | 删除一段短文本，模拟结构损坏、标签缺失等情况。 |
+| bit flip | `flip_random_bits` | 翻转 1、2、4 个相邻 bit，模拟底层字节扰动。 |
+| 字节算术变异 | `arithmetic_random_bytes` | 对 1、2、4 个相邻字节加减小范围随机值，探索数值边界。 |
+| interesting values 替换 | `interesting_random_bytes` | 将局部字节替换为 `0x00`、`0x7f`、`0xff`、最大/最小整数等边界值。 |
+| 字典 token 覆盖/插入 | `overwrite_with_dictionary_token` | 注入 `FDU`、`FDUPLAB`、`<html>`、`{Key}`、`NaN` 等与样例分支相关的 token。 |
+| havoc 随机插入 | `havoc_random_insert` | 插入原输入片段或随机可打印字节，扩大随机搜索空间。 |
+| havoc 随机替换 | `havoc_random_replace` | 将一段内容替换为原输入片段或随机字节。 |
+| 相邻块交换 | `random_block_swap` | 交换两个相邻字节块，在保留局部结构的同时改变顺序。 |
 
-- 每种变异适用的场景。
-- 如何避免越界或编码异常。
-- 如何保证输入多样性。
+边界情况处理方面，空字符串在无法删除或翻转时会直接返回原字符串，而插入类和字典类仍能生成非空输入；短字符串在进行 2 字节或 4 字节操作时会自动降级，避免越界；字节级变异统一先编码为 `bytearray`，变异后用 `latin-1` 解码，保证任意字节都能映射回 Python 字符串，不会因为 UTF-8 解码错误丢失变异结果；`Mutator.mutate()` 还会对非字符串输入先做 `str()` 转换，提升接口容错性。
+
+字典 token 根据四个样例程序设计：`sample1` 对应 `0`、`1`、`-1`、`NaN`、`inf` 等数值输入；`sample2` 对应 `.`, `%d`, `{Key}` 等格式化输入；`sample3` 对应 `FDU`、`FDUPLAB`、`L`、`LA`、`LAB` 等深层分支关键字；`sample4` 对应 `<html>`、`</html>`、`<script>`、`&amp;` 等 HTML 片段。因此该变异器既保留了随机探索能力，也加入了少量面向目标程序结构的引导。
 
 ### 4.2 调度策略实现
 
@@ -88,6 +95,22 @@
 - 覆盖率变化情况。
 - 崩溃数或异常数。
 - 典型输出截图。
+
+变异器部分新增了单元测试 `simple_fuzzer/tests/test_mutator.py`，运行命令如下：
+
+```bash
+python -m unittest discover -s simple_fuzzer/tests -p "test_*.py"
+```
+
+测试结果：
+
+```text
+Ran 4 tests in 0.003s
+
+OK
+```
+
+测试覆盖内容包括：所有变异函数对空串、单字符、普通字符串、样例格式输入和中文输入均不抛异常；`Mutator` 对空串仍能生成可用输入；同一 seed 多次变异能够产生足够多的不同结果；字典变异能够注入 `FDU`、`FDUPLAB`、`<html>`、`{Key}`、`NaN` 等关键 token。
 
 如果结果和预期有差异，可以记录原因分析，例如：
 
