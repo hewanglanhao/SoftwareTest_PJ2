@@ -1,4 +1,5 @@
 import importlib
+import os
 from typing import Any, Optional, Callable, List, Type, Set, Tuple
 from types import FrameType, TracebackType
 
@@ -6,6 +7,8 @@ import sys
 import inspect
 
 Location = Tuple[str, int]
+
+_COVERAGE_FILE = os.path.abspath(__file__)
 
 
 def import_all_functions_from_module(module_name):
@@ -32,7 +35,7 @@ class Coverage:
         if event == "line":
             function_name = frame.f_code.co_name
             lineno = frame.f_lineno
-            if function_name != '__exit__':  # avoid tracing ourselves:
+            if os.path.abspath(frame.f_code.co_filename) != _COVERAGE_FILE:
                 self._trace.append((function_name, lineno))
 
         return self.traceit
