@@ -11,9 +11,8 @@ class PathGreyBoxFuzzer(GreyBoxFuzzer):
 
     def __init__(self, seeds: List[str], schedule: PathPowerSchedule, is_print: bool):
         super().__init__(seeds, schedule, False)
-
-        # TODO
-
+        self.last_path_time = self.start_time
+        self.total_paths = 0
         print("""
 ┌───────────────────────┬───────────────────────┬───────────────────────┬───────────────────┬───────────────────┬────────────────┬───────────────────┐
 │        Run Time       │     Last New Path     │    Last Uniq Crash    │    Total Execs    │    Total Paths    │  Uniq Crashes  │   Covered Lines   │
@@ -29,18 +28,22 @@ class PathGreyBoxFuzzer(GreyBoxFuzzer):
         template = """│{runtime}│{path_time}│{crash_time}│{total_exec}│{total_path}│{uniq_crash}│{covered_line}│
 ├───────────────────────┼───────────────────────┼───────────────────────┼───────────────────┼───────────────────┼────────────────┼───────────────────┤"""
         template = template.format(runtime=format_seconds(time.time() - self.start_time).center(23),
-                                   path_time="".center(23),
+                                   path_time=format_seconds(self.last_path_time - self.start_time).center(23),
                                    crash_time=format_seconds(self.last_crash_time - self.start_time).center(23),
                                    total_exec=str(self.total_execs).center(19),
-                                   total_path="".center(19),
+                                   total_path=str(self.total_paths).center(19),
                                    uniq_crash=str(len(set(self.crash_map.values()))).center(16),
                                    covered_line=str(len(self.covered_line)).center(19))
         print(template)
 
     def run(self, runner: FunctionCoverageRunner) -> Tuple[Any, str]:  # type: ignore
-        """Inform scheduler about path frequency"""
+        old_population_size = len(self.population)
         result, outcome = super().run(runner)
 
-        # TODO
+        if len(self.population) > old_population_size:
+            self.last_path_time = time.time()
+
+        self.schedule.record_path(runner.coverage())
+        self.total_paths = len(self.schedule.path_frequency)
 
         return result, outcome
