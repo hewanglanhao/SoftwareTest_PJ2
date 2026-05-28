@@ -7,17 +7,7 @@ from runner.function_coverage_runner import FunctionCoverageRunner
 from schedule.path_power_schedule import PathPowerSchedule
 from samples.samples import sample1, sample2, sample3, sample4
 from utils.object_utils import dump_object, load_object
-
-
-class Result:
-    def __init__(self, coverage, crashes, start_time, end_time):
-        self.covered_line = coverage
-        self.crashes = crashes
-        self.start_time = start_time
-        self.end_time = end_time
-
-    def __str__(self):
-        return "Covered Lines: " + str(self.covered_line) + ", Crashes Num: " + str(self.crashes) + ", Start Time: " + str(self.start_time) + ", End Time: " + str(self.end_time)
+from utils.result import Result
 
 
 def build_sample(sample_id: int):
