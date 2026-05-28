@@ -4,7 +4,7 @@ import time
 
 from fuzzer.path_grey_box_fuzzer import PathGreyBoxFuzzer
 from runner.function_coverage_runner import FunctionCoverageRunner
-from schedule.path_power_schedule import PathPowerSchedule
+from schedule.registry import SCHEDULES, create_schedule
 from samples.samples import sample1, sample2, sample3, sample4
 from utils.object_utils import dump_object, load_object
 from utils.result import Result
@@ -28,6 +28,10 @@ def parse_args():
                         help="Fuzzing duration in seconds")
     parser.add_argument("--output-dir", default="_result",
                         help="Directory used to persist the run result")
+    parser.add_argument("--schedule", default="path", choices=sorted(SCHEDULES),
+                        help="Seed scheduling strategy")
+    parser.add_argument("--max-input-length", type=int, default=None,
+                        help="Optional cap for generated inputs")
     parser.add_argument("--quiet", action="store_true",
                         help="Disable the status table output")
     return parser.parse_args()
@@ -40,7 +44,12 @@ if __name__ == "__main__":
     f_runner = FunctionCoverageRunner(target_function)
     seeds = load_object(corpus_path)
 
-    grey_fuzzer = PathGreyBoxFuzzer(seeds=seeds, schedule=PathPowerSchedule(), is_print=not args.quiet)
+    grey_fuzzer = PathGreyBoxFuzzer(
+        seeds=seeds,
+        schedule=create_schedule(args.schedule),
+        is_print=not args.quiet,
+        max_input_length=args.max_input_length,
+    )
     start_time = time.time()
     grey_fuzzer.runs(f_runner, run_time=args.run_time)
 

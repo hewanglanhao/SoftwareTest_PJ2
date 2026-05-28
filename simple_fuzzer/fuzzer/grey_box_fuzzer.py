@@ -16,7 +16,8 @@ from utils.seed import Seed
 
 class GreyBoxFuzzer(Fuzzer):
 
-    def __init__(self, seeds: List[str], schedule: PowerSchedule, is_print: bool) -> None:
+    def __init__(self, seeds: List[str], schedule: PowerSchedule, is_print: bool,
+                 max_input_length: int = None) -> None:
         """Constructor.
         `seeds` - a list of (input) strings to mutate.
         `mutator` - the mutator to apply.
@@ -33,6 +34,7 @@ class GreyBoxFuzzer(Fuzzer):
         self.seeds = seeds
         self.mutator = Mutator()
         self.schedule = schedule
+        self.max_input_length = max_input_length
         if is_print:
             print("""
 ┌───────────────────────┬───────────────────────┬───────────────────┬────────────────┬───────────────────┐
@@ -45,11 +47,17 @@ class GreyBoxFuzzer(Fuzzer):
         seed = self.schedule.choose(self.population)
 
         # Stacking: Apply multiple mutations to generate the candidate
-        candidate = seed.data
+        candidate = self._limit_input(seed.data)
         trials = min(len(candidate), 1 << random.randint(1, 5))
         for i in range(trials):
-            candidate = self.mutator.mutate(candidate)
+            candidate = self._limit_input(self.mutator.mutate(candidate))
         return candidate
+
+    def _limit_input(self, inp: str) -> str:
+        # 对解析类样例限制变异后输入长度，避免单次执行时间被超长输入拖垮。
+        if self.max_input_length is None or len(inp) <= self.max_input_length:
+            return inp
+        return inp[:self.max_input_length]
 
     def fuzz(self) -> str:
         """Returns first each seed once and then generates new inputs"""

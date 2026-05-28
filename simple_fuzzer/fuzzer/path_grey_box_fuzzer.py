@@ -2,23 +2,30 @@ import time
 from typing import List, Tuple, Any
 
 from fuzzer.grey_box_fuzzer import GreyBoxFuzzer
-from schedule.path_power_schedule import PathPowerSchedule
+from schedule.power_schedule import PowerSchedule
 from runner.function_coverage_runner import FunctionCoverageRunner
 
 
 class PathGreyBoxFuzzer(GreyBoxFuzzer):
     """Count how often individual paths are exercised."""
 
-    def __init__(self, seeds: List[str], schedule: PathPowerSchedule, is_print: bool):
-        super().__init__(seeds, schedule, False)
+    def __init__(self, seeds: List[str], schedule: PowerSchedule, is_print: bool,
+                 max_input_length: int = None):
+        super().__init__(seeds, schedule, False, max_input_length=max_input_length)
+        self.is_print = is_print
         self.last_path_time = self.start_time
         self.total_paths = 0
-        print("""
+        self.seen_paths = set()
+        if self.is_print:
+            print("""
 ┌───────────────────────┬───────────────────────┬───────────────────────┬───────────────────┬───────────────────┬────────────────┬───────────────────┐
 │        Run Time       │     Last New Path     │    Last Uniq Crash    │    Total Execs    │    Total Paths    │  Uniq Crashes  │   Covered Lines   │
 ├───────────────────────┼───────────────────────┼───────────────────────┼───────────────────┼───────────────────┼────────────────┼───────────────────┤""")
 
     def print_stats(self):
+        if not self.is_print:
+            return
+
         def format_seconds(seconds):
             hours = int(seconds) // 3600
             minutes = int(seconds % 3600) // 60
@@ -43,7 +50,18 @@ class PathGreyBoxFuzzer(GreyBoxFuzzer):
         if len(self.population) > old_population_size:
             self.last_path_time = time.time()
 
-        self.schedule.record_path(runner.coverage())
-        self.total_paths = len(self.schedule.path_frequency)
+        coverage = runner.coverage()
+        path_id = hash(frozenset(coverage))
+        if path_id not in self.seen_paths:
+            # fuzzer 自身维护唯一路径数，方便所有调度策略共享同一套统计输出。
+            self.seen_paths.add(path_id)
+            self.last_path_time = time.time()
+
+        record_path = getattr(self.schedule, "record_path", None)
+        if record_path is not None:
+            # 只有需要运行反馈的调度器才实现 record_path，例如 path 和 rare。
+            record_path(coverage)
+
+        self.total_paths = len(self.seen_paths)
 
         return result, outcome
