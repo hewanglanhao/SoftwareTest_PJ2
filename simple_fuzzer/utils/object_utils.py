@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import pickle
 
@@ -14,6 +15,14 @@ def dump_object(path: str, data):
 def load_object(path: str):
     with open(path, 'rb') as f:
         return pickle.load(f)
+
+
+def dump_json(path: str, data):
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def get_md5_of_object(obj):

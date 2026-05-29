@@ -1,16 +1,15 @@
 import argparse
 import csv
-import json
 import random
 import statistics
 import time
-from pathlib import Path
 
 from fuzzer.path_grey_box_fuzzer import PathGreyBoxFuzzer
 from main import build_sample
 from runner.function_coverage_runner import FunctionCoverageRunner
 from schedule.registry import SCHEDULES, create_schedule
-from utils.object_utils import load_object
+from utils.experiment import COMPARISON_DIRNAME, build_run_record, resolve_output_dir
+from utils.object_utils import dump_json, load_object
 
 
 def run_once(sample_id, schedule_name, run_time, seed, max_input_length):
@@ -30,17 +29,20 @@ def run_once(sample_id, schedule_name, run_time, seed, max_input_length):
     fuzzer.runs(runner, run_time=run_time)
     end_time = time.time()
 
-    return {
-        "sample": sample_id,
-        "schedule": schedule_name,
-        "seed": seed,
-        "run_time_limit": run_time,
-        "duration_seconds": end_time - start_time,
-        "total_execs": fuzzer.total_execs,
-        "total_paths": fuzzer.total_paths,
-        "covered_line_count": len(fuzzer.covered_line),
-        "crash_count": len(set(fuzzer.crash_map.values())),
-    }
+    row = build_run_record(
+        sample=sample_id,
+        schedule=schedule_name,
+        run_time=run_time,
+        initial_seed_count=len(seeds),
+        total_execs=fuzzer.total_execs,
+        total_paths=fuzzer.total_paths,
+        covered_line_count=len(fuzzer.covered_line),
+        crash_count=len(set(fuzzer.crash_map.values())),
+        start_time=start_time,
+        end_time=end_time,
+    )
+    row["seed"] = seed
+    return row
 
 
 def aggregate_results(rows):
@@ -56,6 +58,8 @@ def aggregate_results(rows):
             "sample": sample,
             "schedule": schedule,
             "runs": len(items),
+            "run_time": items[0]["run_time"],
+            "initial_seed_count": items[0]["initial_seed_count"],
             "avg_execs": _mean(items, "total_execs"),
             "avg_paths": _mean(items, "total_paths"),
             "avg_covered_lines": _mean(items, "covered_line_count"),
@@ -109,15 +113,14 @@ def parse_args():
                         help="Base random seed")
     parser.add_argument("--max-input-length", type=int, default=4096,
                         help="Cap generated inputs to keep parser samples stable")
-    parser.add_argument("--output-dir", default="_result/schedule_comparison",
-                        help="Directory for JSON/CSV/TXT results")
+    parser.add_argument("--output-dir", default="_result",
+                        help="Base directory for JSON/CSV/TXT results")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = resolve_output_dir(args.output_dir, COMPARISON_DIRNAME)
 
     rows = []
     for sample_id in args.samples:
@@ -147,11 +150,12 @@ def main():
         "repeats": args.repeats,
         "seed": args.seed,
         "max_input_length": args.max_input_length,
+        "output_dir": str(output_dir),
     }
 
-    (output_dir / "raw_results.json").write_text(
-        json.dumps({"metadata": metadata, "runs": rows, "summary": summary}, indent=2),
-        encoding="utf-8",
+    dump_json(
+        str(output_dir / "raw_results.json"),
+        {"metadata": metadata, "runs": rows, "summary": summary},
     )
     write_csv(output_dir / "raw_results.csv", rows)
     write_csv(output_dir / "summary.csv", summary)

@@ -14,6 +14,24 @@ class ResultUnpickler(pickle.Unpickler):
 
 
 def load_result(path: Path) -> Result:
+    if path.suffix.lower() == ".json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return Result(
+            {
+                (location["function"], location["line"])
+                for location in data.get("covered_lines", [])
+            },
+            set(data.get("crashes", [])),
+            data.get("start_time", 0.0),
+            data.get("end_time", 0.0),
+            sample=data.get("sample"),
+            schedule=data.get("schedule"),
+            run_time=data.get("run_time"),
+            initial_seed_count=data.get("initial_seed_count"),
+            total_execs=data.get("total_execs", 0),
+            total_paths=data.get("total_paths", 0),
+        )
+
     with path.open("rb") as result_file:
         return ResultUnpickler(result_file).load()
 
@@ -21,6 +39,12 @@ def load_result(path: Path) -> Result:
 def format_text(result: Result) -> str:
     data = result.to_dict()
     lines = [
+        f"Sample: {data['sample']}",
+        f"Schedule: {data['schedule']}",
+        f"Requested run time: {data['run_time']}",
+        f"Initial seed count: {data['initial_seed_count']}",
+        f"Total execs: {data['total_execs']}",
+        f"Total paths: {data['total_paths']}",
         f"Covered line count: {data['covered_line_count']}",
         f"Crash count: {data['crash_count']}",
         f"Duration seconds: {data['duration_seconds']:.3f}",

@@ -1,3 +1,5 @@
 .idea
 __pycache__
 _result
+_result_stage*
+tmp*
