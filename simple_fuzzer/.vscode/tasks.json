@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test Python Env",
+			"type": "shell",
+			"command": "python _test_env.py"
+		}
+	]
+}
